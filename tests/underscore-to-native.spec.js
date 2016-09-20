@@ -94,6 +94,38 @@ describe('underscore-to-native', () => {
     expect(result).toEqual(expected);
   });
 
+  it('should build split imports from require', () => {
+    const source = `
+      const _ = require('underscore');
+      _.find([1,2], num => num);
+      _.isUndefined(undefined);
+    `;
+    const expected = `
+      import find from 'lodash/find';
+      import isUndefined from 'lodash/isUndefined';
+      find([1,2], num => num);
+      isUndefined(undefined);
+    `;
+    const result = transform({ source }, { jscodeshift }, { 'split-imports': true });
+    expect(result).toEqual(expected);
+  });
+
+  it('should build split imports from import', () => {
+    const source = `
+      import _ from 'underscore';
+      _.find([1,2], num => num);
+      _.isUndefined(undefined);
+    `;
+    const expected = `
+      import find from 'lodash/find';
+      import isUndefined from 'lodash/isUndefined';
+      find([1,2], num => num);
+      isUndefined(undefined);
+    `;
+    const result = transform({ source }, { jscodeshift }, { 'split-imports': true });
+    expect(result).toEqual(expected);
+  });
+
   xit('should not override existing scope names', () => {
     const source = `
       import _ from 'underscore';

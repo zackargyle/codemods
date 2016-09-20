@@ -1,3 +1,7 @@
+const DEFAULT_OPTIONS = {
+  'split-imports': false,
+};
+
 const NATIVE_METHODS = {
   forEach: 'forEach',
   each: 'forEach',
@@ -33,7 +37,8 @@ const NATIVE_METHODS = {
  * 1. Does not check for variables with same name in scope
  * 2. Knows nothing of types, so objects using _ methods will break
  */
-module.exports = function(fileInfo, { jscodeshift: j }) {
+module.exports = function(fileInfo, { jscodeshift: j }, argOptions) {
+  const options = Object.assign({}, DEFAULT_OPTIONS, argOptions);
   const ast = j(fileInfo.source);
   // Cache opening comments/position
   const { comments, loc } = ast.find(j.Program).get('body', 0).node;
@@ -42,15 +47,15 @@ module.exports = function(fileInfo, { jscodeshift: j }) {
 
   ast // Iterate each _.<method>() usage
     .find(j.CallExpression, isUnderscoreExpression)
-    .forEach(transformExpression(j));
+    .forEach(transformExpression(j, options));
 
   ast // const _ = require('underscore')
     .find(j.VariableDeclaration, isUnderscoreRequire)
-    .forEach(transformRequire(j));
+    .forEach(transformRequire(j, options));
 
   ast // import _ from 'underscore'
     .find(j.ImportDeclaration, isUnderscoreImport)
-    .forEach(transformImport(j));
+    .forEach(transformImport(j, options));
 
   // Restore opening comments/position
   Object.assign(ast.find(j.Program).get('body', 0).node, { comments, loc });
@@ -90,7 +95,7 @@ function isUnderscoreImport(node) {
   );
 }
 
-function transformExpression(j) {
+function transformExpression(j, options) {
   return (ast) => {
     const methodName = ast.node.callee.property.name;
     const nativeMapping = NATIVE_METHODS[methodName];
@@ -133,11 +138,13 @@ function transformUnderscoreMethod(j, ast) {
   );
 }
 
-function transformRequire(j) {
+function transformRequire(j, options) {
+  const imports = Object.keys(j.__methods);
   return (ast) => {
-    const imports = Object.keys(j.__methods);
     if (imports.length === 0) {
       j(ast).remove();
+    } else if (options['split-imports']) {
+      j(ast).replaceWith(buildSplitImports(j, imports));
     } else {
       j(ast).replaceWith(
         j.importDeclaration(getImportSpecifiers(j, imports), j.literal('lodash'))
@@ -146,16 +153,24 @@ function transformRequire(j) {
   };
 }
 
-function transformImport(j) {
+function transformImport(j, options) {
+  const imports = Object.keys(j.__methods);
   return (ast) => {
     ast.node.source = j.literal('lodash');
-    const imports = Object.keys(j.__methods);
     if (imports.length === 0) {
       j(ast).remove();
+    } else if (options['split-imports']) {
+      j(ast).replaceWith(buildSplitImports(j, imports));
     } else {
       ast.node.specifiers = getImportSpecifiers(j, imports)
     }
   };
+}
+
+function buildSplitImports(j, imports) {
+  return imports.map(name => {
+    return j.importDeclaration([j.importDefaultSpecifier(j.identifier(name))], j.literal(`lodash/${name}`))
+  });
 }
 
 function getImportSpecifiers(j, imports) {
