@@ -16,7 +16,7 @@ describe('underscore-to-native', () => {
     const result = transform({ source }, { jscodeshift });
     expect(result).toEqual(expected);
   });
-
+  //
   it('should use partial imports for require', () => {
     const source = `
       const _ = require('underscore');
@@ -46,7 +46,24 @@ describe('underscore-to-native', () => {
     expect(result).toEqual(expected);
   });
 
-
+  it('should retain comments', () => {
+    const source = `
+      // test comment
+      const _ = require('underscore');
+      // test comment
+      const a = require('test');
+      const result = _.find(test, 2);
+    `;
+    const expected = `
+      // test comment
+      import {find} from 'lodash';
+      // test comment
+      const a = require('test');
+      const result = find(test, 2);
+    `;
+    const result = transform({ source }, { jscodeshift });
+    expect(result).toEqual(expected);
+  });
 
   it('should remove the import if no methods left', () => {
     const source = `
@@ -72,6 +89,25 @@ describe('underscore-to-native', () => {
       [1,2].forEach(num => num);
       const test = [1,2,3];
       const result = find(test, 2);
+    `;
+    const result = transform({ source }, { jscodeshift });
+    expect(result).toEqual(expected);
+  });
+
+  xit('should not override existing scope names', () => {
+    const source = `
+      import _ from 'underscore';
+      function find() {}
+      function nest() {
+        const result = _.find(test, 2);
+      }
+    `;
+    const expected = `
+      import {find as _find} from 'lodash';
+      function find() {}
+      function nest() {
+        const result = _find(test, 2);
+      }
     `;
     const result = transform({ source }, { jscodeshift });
     expect(result).toEqual(expected);

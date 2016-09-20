@@ -20,30 +20,40 @@ const NATIVE_METHODS = {
 }
 
 /**
- * This replaces every occurence of variable "foo".
+ * This codemod does a few different things.
+ * 1. Convert all underscore imports/requires to lodash imports
+ *    const _ = require('underscore') -> import _ from 'lodash'
+ * 2. Remove native equivalents
+ *    _.forEach(array, fn) -> array.forEach(fn)
+ * 3. Remove unused imports after #2
+ * 4. Use partial imports from lodash to allow tree-shaking
+ *    import _ from 'lodash' -> import {find} from 'lodash'
+ *
+ * Issues:
+ * 1. Does not check for variables with same name in scope
+ * 2. Knows nothing of types, so objects using _ methods will break
  */
 module.exports = function(fileInfo, { jscodeshift: j }) {
   const ast = j(fileInfo.source);
+  // Cache opening comments/position
+  const { comments, loc } = ast.find(j.Program).get('body', 0).node;
+  // Cache of underscore methods used
   j.__methods = {};
 
-  // TODO: look for scoped variables with matching names
-
-  ast
-    .find(j.CallExpression)
-    .filter(isUnderscoreExpression)
+  ast // Iterate each _.<method>() usage
+    .find(j.CallExpression, isUnderscoreExpression)
     .forEach(transformExpression(j));
 
-  // const _ = require('underscore')
-  ast
-    .find(j.VariableDeclaration)
-    .filter(isUnderscoreRequire)
+  ast // const _ = require('underscore')
+    .find(j.VariableDeclaration, isUnderscoreRequire)
     .forEach(transformRequire(j));
 
-  // import _ from 'underscore'
-  ast
-    .find(j.ImportDeclaration)
-    .filter(isUnderscoreImport)
+  ast // import _ from 'underscore'
+    .find(j.ImportDeclaration, isUnderscoreImport)
     .forEach(transformImport(j));
+
+  // Restore opening comments/position
+  Object.assign(ast.find(j.Program).get('body', 0).node, { comments, loc });
 
   return ast.toSource({
     arrowParensAlways: true,
@@ -51,7 +61,7 @@ module.exports = function(fileInfo, { jscodeshift: j }) {
   });
 }
 
-function isUnderscoreExpression({ node }) {
+function isUnderscoreExpression(node) {
   return (
     node.type === 'CallExpression' &&
     node.callee.type === 'MemberExpression' &&
@@ -60,7 +70,7 @@ function isUnderscoreExpression({ node }) {
   );
 }
 
-function isUnderscoreRequire({ node }) {
+function isUnderscoreRequire(node) {
   return (
     node.type === 'VariableDeclaration' &&
     node.declarations.length > 0 &&
@@ -73,7 +83,7 @@ function isUnderscoreRequire({ node }) {
   );
 }
 
-function isUnderscoreImport({ node }) {
+function isUnderscoreImport(node) {
   return (
     node.type === 'ImportDeclaration' &&
     node.source.value === 'underscore'
@@ -125,17 +135,12 @@ function transformUnderscoreMethod(j, ast) {
 
 function transformRequire(j) {
   return (ast) => {
-    const methods = Object.keys(j.__methods);
-    if (methods.length === 0) {
+    const imports = Object.keys(j.__methods);
+    if (imports.length === 0) {
       j(ast).remove();
     } else {
       j(ast).replaceWith(
-        j.importDeclaration(
-          methods.map(methodName => {
-            return j.importSpecifier(j.identifier(methodName));
-          }),
-          j.literal('lodash')
-        )
+        j.importDeclaration(getImportSpecifiers(j, imports), j.literal('lodash'))
       );
     }
   };
@@ -144,13 +149,17 @@ function transformRequire(j) {
 function transformImport(j) {
   return (ast) => {
     ast.node.source = j.literal('lodash');
-    const methods = Object.keys(j.__methods);
-    if (methods.length === 0) {
+    const imports = Object.keys(j.__methods);
+    if (imports.length === 0) {
       j(ast).remove();
     } else {
-      ast.node.specifiers = methods.map(methodName => {
-        return j.importSpecifier(j.identifier(methodName));
-      });
+      ast.node.specifiers = getImportSpecifiers(j, imports)
     }
   };
+}
+
+function getImportSpecifiers(j, imports) {
+  return imports.map(name => {
+    return j.importSpecifier(j.identifier(name));
+  });
 }
