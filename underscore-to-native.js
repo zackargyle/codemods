@@ -6,12 +6,16 @@ const NATIVE_METHODS = {
   forEach: 'forEach',
   each: 'forEach',
   map: 'map',
+  collect: 'map',
   filter: 'filter',
   select: 'filter',
   every: 'every',
   some: 'some',
+  find: 'find',
+  detect: 'find',
   contains: 'includes',
   reduce: 'reduce',
+  inject: 'reduce',
   indexOf: 'indexOf',
   lastIndexOf: 'lastIndexOf',
   first: (j, identifier) => j.memberExpression(identifier, j.literal(0)),
@@ -21,7 +25,7 @@ const NATIVE_METHODS = {
       j.literal(1)
     )
   ),
-}
+};
 
 /**
  * This codemod does a few different things.
@@ -64,7 +68,7 @@ module.exports = function(fileInfo, { jscodeshift: j }, argOptions) {
     arrowParensAlways: true,
     quote: 'single',
   });
-}
+};
 
 function isUnderscoreExpression(node) {
   return (
@@ -162,14 +166,14 @@ function transformImport(j, options) {
     } else if (options['split-imports']) {
       j(ast).replaceWith(buildSplitImports(j, imports));
     } else {
-      ast.node.specifiers = getImportSpecifiers(j, imports)
+      ast.node.specifiers = getImportSpecifiers(j, imports);
     }
   };
 }
 
 function buildSplitImports(j, imports) {
   return imports.map(name => {
-    return j.importDeclaration([j.importDefaultSpecifier(j.identifier(name))], j.literal(`lodash/${name}`))
+    return j.importDeclaration([j.importDefaultSpecifier(j.identifier(name))], j.literal(`lodash/${name}`));
   });
 }
 

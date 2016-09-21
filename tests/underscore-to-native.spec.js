@@ -7,11 +7,11 @@ describe('underscore-to-native', () => {
   it('should use partial imports', () => {
     const source = `
       import _ from 'underscore';
-      _.find([1,2], 2);
+      _.max([1,2]);
     `;
     const expected = `
-      import {find} from 'lodash';
-      find([1,2], 2);
+      import {max} from 'lodash';
+      max([1,2]);
     `;
     const result = transform({ source }, { jscodeshift });
     expect(result).toEqual(expected);
@@ -20,11 +20,11 @@ describe('underscore-to-native', () => {
   it('should use partial imports for require', () => {
     const source = `
       const _ = require('underscore');
-      _.find([1,2], 2);
+      _.max([1,2]);
     `;
     const expected = `
-      import {find} from 'lodash';
-      find([1,2], 2);
+      import {max} from 'lodash';
+      max([1,2]);
     `;
     const result = transform({ source }, { jscodeshift });
     expect(result).toEqual(expected);
@@ -52,14 +52,14 @@ describe('underscore-to-native', () => {
       const _ = require('underscore');
       // test comment
       const a = require('test');
-      const result = _.find(test, 2);
+      const result = _.max([1, 2]);
     `;
     const expected = `
       // test comment
-      import {find} from 'lodash';
+      import {max} from 'lodash';
       // test comment
       const a = require('test');
-      const result = find(test, 2);
+      const result = max([1, 2]);
     `;
     const result = transform({ source }, { jscodeshift });
     expect(result).toEqual(expected);
@@ -82,13 +82,13 @@ describe('underscore-to-native', () => {
       const _ = require('underscore');
       _.forEach([1,2], num => num);
       const test = [1,2,3];
-      const result = _.find(test, 2);
+      const result = _.max(test);
     `;
     const expected = `
-      import {find} from 'lodash';
+      import {max} from 'lodash';
       [1,2].forEach(num => num);
       const test = [1,2,3];
-      const result = find(test, 2);
+      const result = max(test);
     `;
     const result = transform({ source }, { jscodeshift });
     expect(result).toEqual(expected);
@@ -97,13 +97,13 @@ describe('underscore-to-native', () => {
   it('should build split imports from require', () => {
     const source = `
       const _ = require('underscore');
-      _.find([1,2], num => num);
+      _.max([1,2]);
       _.isUndefined(undefined);
     `;
     const expected = `
-      import find from 'lodash/find';
+      import max from 'lodash/max';
       import isUndefined from 'lodash/isUndefined';
-      find([1,2], num => num);
+      max([1,2]);
       isUndefined(undefined);
     `;
     const result = transform({ source }, { jscodeshift }, { 'split-imports': true });
@@ -113,13 +113,13 @@ describe('underscore-to-native', () => {
   it('should build split imports from import', () => {
     const source = `
       import _ from 'underscore';
-      _.find([1,2], num => num);
+      _.max([1,2]);
       _.isUndefined(undefined);
     `;
     const expected = `
-      import find from 'lodash/find';
+      import max from 'lodash/max';
       import isUndefined from 'lodash/isUndefined';
-      find([1,2], num => num);
+      max([1,2]);
       isUndefined(undefined);
     `;
     const result = transform({ source }, { jscodeshift }, { 'split-imports': true });
@@ -129,16 +129,16 @@ describe('underscore-to-native', () => {
   xit('should not override existing scope names', () => {
     const source = `
       import _ from 'underscore';
-      function find() {}
+      var max = 5;
       function nest() {
-        const result = _.find(test, 2);
+        const result = _.max(test, 2);
       }
     `;
     const expected = `
-      import {find as _find} from 'lodash';
-      function find() {}
+      import {max as _max} from 'lodash';
+      var max = 5;
       function nest() {
-        const result = _find(test, 2);
+        const result = _max(test, 2);
       }
     `;
     const result = transform({ source }, { jscodeshift });
